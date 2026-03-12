@@ -1,6 +1,6 @@
 # Computational Sensorimotor Control
 
-A 15-week graduate seminar on how the brain controls movement — from muscle mechanics to optimal feedback control.
+A 15-week graduate seminar on how the brain controls movement — from muscle mechanics to sensorimotor integration.
 
 **Instructor:** Tarkesh Singh · Penn State University · Fall 2026
 
