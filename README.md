@@ -27,7 +27,8 @@ Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998)
 │   │   ├── arm.py          # FK, IK, Jacobian (Week 1)
 │   │   ├── muscle.py       # Gribble muscle model (Week 2)
 │   │   ├── dynamics.py     # Mass matrix, Coriolis, RK4 (Week 3)
-│   │   └── params.py       # All physical parameters
+│   │   ├── params.py       # All physical parameters
+│   │   └── Sensor.py       # Vision & Sensory Delay
 │   └── tests/
 ├── lectures/               # Weekly lecture notes (.docx)
 ├── homework/               # Assignments + student notebooks
