@@ -30,5 +30,6 @@ from .params import (
     MUSCLE_DEFS, Q1_LIMITS, Q2_LIMITS,
     C_EXP, G_DIRECT, TAU_CA, MU_LAMBDA,
 )
+from .sensor import Sensor
 
 __version__ = "0.1.0"
