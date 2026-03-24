@@ -641,3 +641,163 @@ def run_trial(model, gaze, seed=42, omega_true=60.0,
         aim_angle=aim_angle, actual_miss=actual_miss,
         n_move=n_move, n_cross=n_cross
     )
+
+def run_three_conditions(seed=42, T_total=0.850, omega_deg=60,
+                          sigma_omega_MT=12.0, mt_interval=0.010,
+                          mt_bias=1.12, mt_onset=0.060, pos_onset=0.080):
+    """Run all three KF conditions with shared pre-saccade phase.
+
+    Replicates the architecture from gen_fig4_polar.py:
+    - Shared phase (0–200ms): all conditions receive identical peripheral
+      position (onset 80ms, every 50ms) + MT velocity (onset 60ms, every 10ms).
+    - Position-only re-runs the shared phase with same RNG but skips MT updates.
+    - At 200ms, state is forked into pursuit, fixation+MT, fixation pos-only.
+
+    Returns: (dp, dm, df) — pursuit, fixation+MT, fixation pos-only dicts,
+    each with keys: kf_theta, kf_omega, sigma_theta, sigma_omega,
+                    true_theta, true_omega, n
+    """
+    T_branch = 0.200
+    n_branch = int(T_branch / dt)
+    n_total = int(T_total / dt) + 1
+    n_post = n_total - n_branch
+
+    tgt = ArcTarget(start_hand, omega_deg=omega_deg)
+
+    # ─── Shared pre-saccade phase (0–200ms) ───
+    rng_shared = np.random.default_rng(seed * 1000 + 1)
+    kf_shared = PolarTgtKF()
+    kf_shared.reset(theta_est=tgt.theta(0) + rng_shared.normal(0, 2.0), omega_est=0.0)
+
+    last_mt = -1.0
+    shared = {k: np.zeros(n_branch) for k in
+              ['true_theta','true_omega','kf_theta','kf_omega','sigma_theta','sigma_omega']}
+
+    for i in range(n_branch):
+        t = i * dt; true_th = tgt.theta(t); true_om = tgt.omega()
+        kf_shared.x = kf_shared.A @ kf_shared.x
+        kf_shared.P = kf_shared.A @ kf_shared.P @ kf_shared.A.T + kf_shared.Q
+        kf_shared._t += dt
+        if t >= pos_onset and kf_shared._t - kf_shared._lpu >= kf_shared.si:
+            kf_shared._update_pos(true_th + rng_shared.normal(0, kf_shared.sp), kf_shared.sp)
+            kf_shared._lpu = kf_shared._t
+        if t >= mt_onset and kf_shared._t - last_mt >= mt_interval:
+            kf_shared._update_vel(true_om * mt_bias + rng_shared.normal(0, sigma_omega_MT), sigma_omega_MT)
+            last_mt = kf_shared._t
+        shared['true_theta'][i] = true_th; shared['true_omega'][i] = true_om
+        shared['kf_theta'][i] = kf_shared.x[0]; shared['kf_omega'][i] = kf_shared.x[1]
+        shared['sigma_theta'][i] = np.sqrt(kf_shared.P[0, 0])
+        shared['sigma_omega'][i] = np.sqrt(kf_shared.P[1, 1])
+
+    branch_x = kf_shared.x.copy()
+    branch_P = kf_shared.P.copy()
+    branch_lpu = kf_shared._lpu
+    branch_t = kf_shared._t
+    branch_last_mt = last_mt
+
+    # ─── Fork 1: PURSUIT ───
+    rng_p = np.random.default_rng(seed * 2000 + 1)
+    eye_p = Eye(mode='pursuit'); eye_p.reset(start_hand)
+    for i in range(n_branch):
+        eye_p.step(tgt.theta(i * dt), branch_x[1], dt)
+
+    kf_p = PolarTgtKF()
+    kf_p.x = branch_x.copy(); kf_p.P = branch_P.copy()
+    kf_p._lpu = branch_lpu; kf_p._t = branch_t
+    last_mt_p = branch_last_mt
+
+    post_p = {k: np.zeros(n_post) for k in
+              ['kf_theta','kf_omega','sigma_theta','sigma_omega','true_theta','true_omega']}
+    prev_slip = 0.0
+
+    for i in range(n_post):
+        t = (n_branch + i) * dt; true_th = tgt.theta(t); true_om = tgt.omega()
+        gz_th, eev_om, ph = eye_p.step(true_th, kf_p.x[1], dt)
+        curr_slip = true_th - gz_th
+        slip_rate = (curr_slip - prev_slip) / dt; prev_slip = curr_slip
+        kf_p._slip_rate = slip_rate
+        xh, Kn, sig_th, sig_om = kf_p.step(gz_th, true_th, eev_om, ph, rng_p, dt)
+        if ph == 'saccade':
+            if kf_p._t - last_mt_p >= mt_interval:
+                kf_p._update_vel(true_om * mt_bias + rng_p.normal(0, sigma_omega_MT), sigma_omega_MT)
+                last_mt_p = kf_p._t
+                sig_th = np.sqrt(kf_p.P[0,0]); sig_om = np.sqrt(kf_p.P[1,1])
+                xh = kf_p.x.copy()
+        post_p['true_theta'][i] = true_th; post_p['true_omega'][i] = true_om
+        post_p['kf_theta'][i] = xh[0]; post_p['kf_omega'][i] = xh[1]
+        post_p['sigma_theta'][i] = sig_th; post_p['sigma_omega'][i] = sig_om
+
+    dp = {k: np.concatenate([shared[k], post_p[k]]) for k in shared}
+    dp['n'] = n_total
+
+    # ─── Fork 2: FIXATION + MT ───
+    rng_mt = np.random.default_rng(seed * 3000 + 1)
+    kf_mt = PolarTgtKF()
+    kf_mt.x = branch_x.copy(); kf_mt.P = branch_P.copy()
+    kf_mt._lpu = branch_lpu; kf_mt._t = branch_t
+    last_mt_mt = branch_last_mt
+
+    post_mt = {k: np.zeros(n_post) for k in
+               ['kf_theta','kf_omega','sigma_theta','sigma_omega','true_theta','true_omega']}
+
+    for i in range(n_post):
+        t = (n_branch + i) * dt; true_th = tgt.theta(t); true_om = tgt.omega()
+        kf_mt.x = kf_mt.A @ kf_mt.x; kf_mt.P = kf_mt.A @ kf_mt.P @ kf_mt.A.T + kf_mt.Q
+        kf_mt._t += dt
+        if kf_mt._t - kf_mt._lpu >= kf_mt.si:
+            kf_mt._update_pos(true_th + rng_mt.normal(0, kf_mt.sp), kf_mt.sp)
+            kf_mt._lpu = kf_mt._t
+        if kf_mt._t - last_mt_mt >= mt_interval:
+            kf_mt._update_vel(true_om * mt_bias + rng_mt.normal(0, sigma_omega_MT), sigma_omega_MT)
+            last_mt_mt = kf_mt._t
+        post_mt['true_theta'][i] = true_th; post_mt['true_omega'][i] = true_om
+        post_mt['kf_theta'][i] = kf_mt.x[0]; post_mt['kf_omega'][i] = kf_mt.x[1]
+        post_mt['sigma_theta'][i] = np.sqrt(kf_mt.P[0, 0])
+        post_mt['sigma_omega'][i] = np.sqrt(kf_mt.P[1, 1])
+
+    dm = {k: np.concatenate([shared[k], post_mt[k]]) for k in shared}
+    dm['n'] = n_total
+
+    # ─── Fork 3: FIXATION position-only ───
+    rng_fo_shared = np.random.default_rng(seed * 1000 + 1)  # SAME seed
+    kf_fo = PolarTgtKF()
+    kf_fo.reset(theta_est=tgt.theta(0) + rng_fo_shared.normal(0, 2.0), omega_est=0.0)
+
+    shared_fo = {k: np.zeros(n_branch) for k in
+                 ['kf_theta','kf_omega','sigma_theta','sigma_omega','true_theta','true_omega']}
+    last_mt_fo_dummy = -1.0
+
+    for i in range(n_branch):
+        t = i * dt; true_th = tgt.theta(t); true_om = tgt.omega()
+        kf_fo.x = kf_fo.A @ kf_fo.x; kf_fo.P = kf_fo.A @ kf_fo.P @ kf_fo.A.T + kf_fo.Q
+        kf_fo._t += dt
+        if t >= pos_onset and kf_fo._t - kf_fo._lpu >= kf_fo.si:
+            kf_fo._update_pos(true_th + rng_fo_shared.normal(0, kf_fo.sp), kf_fo.sp)
+            kf_fo._lpu = kf_fo._t
+        if t >= mt_onset and kf_fo._t - last_mt_fo_dummy >= mt_interval:
+            _ = rng_fo_shared.normal(0, sigma_omega_MT)
+            last_mt_fo_dummy = kf_fo._t
+        shared_fo['true_theta'][i] = true_th; shared_fo['true_omega'][i] = true_om
+        shared_fo['kf_theta'][i] = kf_fo.x[0]; shared_fo['kf_omega'][i] = kf_fo.x[1]
+        shared_fo['sigma_theta'][i] = np.sqrt(kf_fo.P[0, 0])
+        shared_fo['sigma_omega'][i] = np.sqrt(kf_fo.P[1, 1])
+
+    rng_fo = np.random.default_rng(seed * 4000 + 1)
+    post_fo = {k: np.zeros(n_post) for k in
+               ['kf_theta','kf_omega','sigma_theta','sigma_omega','true_theta','true_omega']}
+    for i in range(n_post):
+        t = (n_branch + i) * dt; true_th = tgt.theta(t); true_om = tgt.omega()
+        kf_fo.x = kf_fo.A @ kf_fo.x; kf_fo.P = kf_fo.A @ kf_fo.P @ kf_fo.A.T + kf_fo.Q
+        kf_fo._t += dt
+        if kf_fo._t - kf_fo._lpu >= kf_fo.si:
+            kf_fo._update_pos(true_th + rng_fo.normal(0, kf_fo.sp), kf_fo.sp)
+            kf_fo._lpu = kf_fo._t
+        post_fo['true_theta'][i] = true_th; post_fo['true_omega'][i] = true_om
+        post_fo['kf_theta'][i] = kf_fo.x[0]; post_fo['kf_omega'][i] = kf_fo.x[1]
+        post_fo['sigma_theta'][i] = np.sqrt(kf_fo.P[0, 0])
+        post_fo['sigma_omega'][i] = np.sqrt(kf_fo.P[1, 1])
+
+    df = {k: np.concatenate([shared_fo[k], post_fo[k]]) for k in shared_fo}
+    df['n'] = n_total
+
+    return dp, dm, df
