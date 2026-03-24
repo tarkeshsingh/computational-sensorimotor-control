@@ -20,6 +20,7 @@ arm = Arm()
 fk = arm.forward_kinematics
 dt = 0.001  # s
 start_hand = np.array(fk(Q_REF))
+R = 0.15  # arc radius (m)
 
 
 class ArcTarget:
@@ -426,4 +427,217 @@ def feedforward_plan(seed=42, T_obs=0.200, T_cross=0.550, sigma_T_move=0.050,
         sig_from_vel=sig_from_vel,
         sig_from_timing=sig_from_timing,
         sig_T=sig_T,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Feedback control simulation
+# ═══════════════════════════════════════════════════════════════════════
+
+# Movement parameters
+_T_cross = 0.550
+_x_cross_frac = 0.702
+_T_total_mj = _T_cross / _x_cross_frac
+_A_total = R / (10*_x_cross_frac**3 - 15*_x_cross_frac**4 + 6*_x_cross_frac**5)
+_T_launch = 0.245
+
+# Feedback constants
+HIT_WINDOW_DEG = 4.8    # ±1.25 cm on arc at R=15cm
+SDN_FRAC = 0.10          # signal-dependent noise fraction
+HAND_SMOOTH_TAU = 0.020  # 20ms LP for hand state estimate
+
+
+class _SimpleKF:
+    """Lightweight KF for feedback simulation (internal use)."""
+    def __init__(self):
+        self.x = np.array([0.0, 0.0])
+        self.P = np.array([[25.0, 0], [0, 900.0]])
+        self.A = np.array([[1.0, dt], [0, 1.0]])
+        self.Q = np.array([[1e-6, 0], [0, 1e-6]])
+    def predict(self):
+        self.x = self.A @ self.x
+        self.P = self.A @ self.P @ self.A.T + self.Q
+    def update_pos(self, y, sig):
+        H = np.array([[1.0, 0.0]]); R_ = sig**2
+        S = (H @ self.P @ H.T)[0, 0] + R_
+        K = self.P @ H.T / S
+        self.x += K.flatten() * (y - self.x[0])
+        self.P = (np.eye(2) - K @ H) @ self.P
+    def update_vel(self, y, sig):
+        H = np.array([[0.0, 1.0]]); R_ = sig**2
+        S = (H @ self.P @ H.T)[0, 0] + R_
+        K = self.P @ H.T / S
+        self.x += K.flatten() * (y - self.x[1])
+        self.P = (np.eye(2) - K @ H) @ self.P
+
+
+def _hand_visual_sigma(hand_dist_from_center, gaze_mode):
+    """Eccentricity-dependent hand visual noise (m)."""
+    if gaze_mode == 'pursuit':
+        ecc = abs(R - hand_dist_from_center)
+        return 0.001 + 0.004 * min(ecc / 0.02, 1.0)
+    else:
+        return 0.005
+
+
+def mj_pos(x):
+    """Min-jerk position profile (normalized)."""
+    return 10*x**3 - 15*x**4 + 6*x**5
+
+
+def mj_vel(x):
+    """Min-jerk velocity profile (normalized)."""
+    return 30*x**2 - 60*x**3 + 30*x**4
+
+
+def run_trial(model, gaze, seed=42, omega_true=60.0,
+              mt_bias=1.12, sigma_MT=12.0, mt_interval=0.010, sigma_eev=5.0):
+    """Simulate a full interception trial with feedforward + feedback control.
+
+    Parameters:
+        model      : 'A' (intermittent corrections) or 'B' (continuous time-to-go)
+        gaze       : 'pursuit' or 'fixation'
+        seed       : RNG seed for reproducibility
+        omega_true : true target angular velocity (°/s)
+        mt_bias    : Aubert-Fleischl multiplicative bias on MT observations
+        sigma_MT   : MT velocity observation noise (°/s)
+        mt_interval: MT temporal integration window (s)
+        sigma_eev  : composite velocity observation noise (°/s)
+
+    Returns:
+        dict with keys: hand_true_ang, hand_dist, hand_speed, pred_miss,
+        actual_miss, kf_theta, kf_omega, corrections, final_miss_deg,
+        final_miss_cm, aim_angle, n_move, n_cross
+    """
+    rng = np.random.default_rng(seed)
+    n_move = int(_T_total_mj / dt) + 1
+    n_cross = int(_T_cross / dt)
+
+    # ─── Observation phase ───
+    kf = _SimpleKF()
+    kf.x = np.array([rng.normal(0, 2.0), 0.0])
+    last_mt = -1.0; last_pos = -1.0
+    for i in range(int(_T_launch / dt)):
+        t = i * dt; true_th = omega_true * t
+        kf.predict()
+        if t - last_pos >= 0.050:
+            kf.update_pos(true_th + rng.normal(0, 1.91), 1.91); last_pos = t
+        if t - last_mt >= mt_interval:
+            kf.update_vel(omega_true * mt_bias + rng.normal(0, sigma_MT), sigma_MT)
+            last_mt = t
+
+    if gaze == 'pursuit':
+        for i in range(30):
+            t = (int(_T_launch / dt) + i) * dt
+            true_th = omega_true * t
+            kf.predict()
+            kf.update_pos(true_th + rng.normal(0, 0.38), 0.38)
+
+    aim_angle = kf.x[0] + kf.x[1] * _T_cross
+
+    # ─── Movement phase ───
+    hand_angle = np.zeros(n_move)
+    actual_miss = np.zeros(n_move)
+    hand_dist = np.zeros(n_move)
+    hand_speed = np.zeros(n_move)
+    hand_true_ang = np.zeros(n_move)
+    hand_sensed_ang = np.zeros(n_move)
+    pred_miss = np.zeros(n_move)
+    kf_theta = np.zeros(n_move)
+    kf_omega = np.zeros(n_move)
+    target_true = np.zeros(n_move)
+    corrections = []
+
+    current_aim = aim_angle
+    true_hand_angle = aim_angle
+    last_mt_m = -1.0; last_pos_m = -1.0
+    last_corr_time = -0.200
+    smoothed_hand_ang = aim_angle
+    MIN_ONSET = 0.120
+
+    for i in range(n_move):
+        x_mj = min(i * dt / _T_total_mj, 1.0)
+        t_abs = _T_launch + i * dt
+        true_th = omega_true * t_abs
+        t_remaining = max(_T_cross - i * dt, 0.001)
+
+        dist = _A_total * mj_pos(x_mj)
+        speed = (_A_total / _T_total_mj) * mj_vel(x_mj)
+        hand_dist[i] = dist
+        hand_speed[i] = speed
+
+        if speed > 0.001:
+            sdn = rng.normal(0, SDN_FRAC * (speed / R) * (180 / np.pi) * dt)
+            true_hand_angle += sdn
+
+        hand_true_ang[i] = true_hand_angle
+        target_true[i] = true_th
+
+        sig_vis = _hand_visual_sigma(dist, gaze)
+        sig_vis_deg = sig_vis / R * 180 / np.pi
+        sig_prop_deg = 0.012 / R * 180 / np.pi
+        w_vis = 1 / sig_vis_deg**2; w_prop = 1 / sig_prop_deg**2
+        hand_obs_vis = true_hand_angle + rng.normal(0, sig_vis_deg)
+        hand_obs_prop = true_hand_angle + rng.normal(0, sig_prop_deg)
+        sensed_angle = (w_vis * hand_obs_vis + w_prop * hand_obs_prop) / (w_vis + w_prop)
+        hand_sensed_ang[i] = sensed_angle
+
+        kf.predict()
+        if gaze == 'pursuit':
+            kf.update_pos(true_th + rng.normal(0, 0.38), 0.38)
+            pursuit_frac = min(i * dt / 0.200, 1.0)
+            if i * dt > 0.005:
+                composite = omega_true + rng.normal(0, sigma_eev / (0.3 + 0.7 * pursuit_frac))
+                kf.update_vel(composite, sigma_eev)
+        else:
+            if i * dt - last_pos_m >= 0.050:
+                kf.update_pos(true_th + rng.normal(0, 1.91), 1.91); last_pos_m = i * dt
+            if i * dt - last_mt_m >= mt_interval:
+                kf.update_vel(omega_true * mt_bias + rng.normal(0, sigma_MT), sigma_MT)
+                last_mt_m = i * dt
+
+        kf_theta[i] = kf.x[0]; kf_omega[i] = kf.x[1]
+
+        # Smooth hand angle estimate (LP filter, tau=20ms)
+        alpha_h = dt / HAND_SMOOTH_TAU
+        smoothed_hand_ang += alpha_h * (sensed_angle - smoothed_hand_ang)
+
+        target_cross_angle = kf.x[0] + kf.x[1] * t_remaining
+        miss = smoothed_hand_ang - target_cross_angle
+        pred_miss[i] = miss
+        actual_miss[i] = true_hand_angle - (omega_true * (_T_launch + _T_cross))
+
+        if model == 'A':
+            if (abs(miss) > HIT_WINDOW_DEG and
+                i * dt > MIN_ONSET and
+                i * dt < _T_cross - 0.100 and
+                i * dt - last_corr_time > 0.120):
+                old_aim = current_aim
+                current_aim = target_cross_angle
+                corrections.append((i * dt, old_aim, current_aim, miss))
+                last_corr_time = i * dt
+            blend_alpha = dt / 0.050
+            true_hand_angle += blend_alpha * (current_aim - true_hand_angle)
+        elif model == 'B':
+            g = (t_remaining / _T_cross)**2
+            correction = miss * 0.15 * g
+            true_hand_angle -= correction
+
+        hand_angle[i] = true_hand_angle
+
+    ci = min(n_cross, n_move - 1)
+    true_target_at_cross = omega_true * (_T_launch + _T_cross)
+    final_miss_deg = hand_true_ang[ci] - true_target_at_cross
+    final_miss_cm = abs(final_miss_deg) * np.pi * R * 100 / 180
+
+    return dict(
+        hand_angle=hand_angle, hand_true_ang=hand_true_ang,
+        hand_dist=hand_dist, hand_speed=hand_speed,
+        hand_sensed_ang=hand_sensed_ang,
+        pred_miss=pred_miss, kf_theta=kf_theta, kf_omega=kf_omega,
+        target_true=target_true,
+        corrections=corrections,
+        final_miss_deg=final_miss_deg, final_miss_cm=final_miss_cm,
+        aim_angle=aim_angle, actual_miss=actual_miss,
+        n_move=n_move, n_cross=n_cross
     )
