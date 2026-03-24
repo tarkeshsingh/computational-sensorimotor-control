@@ -715,8 +715,8 @@ def run_three_conditions(seed=42, T_total=0.850, omega_deg=60,
         gz_th, eev_om, ph = eye_p.step(true_th, kf_p.x[1], dt)
         curr_slip = true_th - gz_th
         slip_rate = (curr_slip - prev_slip) / dt; prev_slip = curr_slip
-        kf_p._slip_rate = slip_rate
-        xh, Kn, sig_th, sig_om = kf_p.step(gz_th, true_th, eev_om, ph, rng_p, dt)
+        xh, Kn, sig_th, sig_om = kf_p.step(gz_th, true_th, eev_om, ph, rng_p, dt,
+                                              slip_rate=slip_rate)
         if ph == 'saccade':
             if kf_p._t - last_mt_p >= mt_interval:
                 kf_p._update_vel(true_om * mt_bias + rng_p.normal(0, sigma_omega_MT), sigma_omega_MT)
