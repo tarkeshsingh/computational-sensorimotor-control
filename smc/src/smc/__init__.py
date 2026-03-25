@@ -17,6 +17,7 @@ Quick start
 
 from .arm import Arm
 from .muscle import Muscle, make_muscles, force_velocity_multiplier
+from .hill_muscle import HillMuscle, make_hill_muscles
 from .dynamics import (
     mass_matrix,
     coriolis,
@@ -24,6 +25,8 @@ from .dynamics import (
     rk4_step,
     simulate_direct,
     simulate_lambda,
+    simulate_hill,
+    simulate_kmhm,
 )
 from .params import (
     Q_REF, L1, L2, M1, M2, S1, S2, I1, I2,
