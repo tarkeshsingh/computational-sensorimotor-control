@@ -192,3 +192,60 @@ def make_muscles():
         [pec, bic_l, bic_s, delt, tri_l, tri_lg]
     """
     return [Muscle(*params) for params in MUSCLE_DEFS]
+
+def lambda_for_posture(q, C=0.25):
+    """Compute λ values that hold the arm at joint angles q.
+
+    Each λ is set so that the threshold displacement A = l − λ equals
+    C × (|r_sh| + |r_el|), producing a baseline co-contraction level C.
+
+    Parameters
+    ----------
+    q : array-like, shape (2,)
+        Target joint angles (rad).
+    C : float
+        Co-contraction level (rad). Default: 0.25.
+
+    Returns
+    -------
+    lam : ndarray, shape (6,)
+        Threshold values (m) for the six muscles.
+    """
+    muscles = make_muscles()
+    return np.array([m.length(q) - (abs(m.r_sh) + abs(m.r_el)) * C
+                     for m in muscles])
+
+
+def make_ramp(lam_init, lam_final, t_start=0.05, duration=0.35):
+    """Create a constant-rate λ ramp function.
+
+    Returns a callable lam_fn(t) that linearly interpolates from
+    lam_init to lam_final over [t_start, t_start + duration].
+
+    Parameters
+    ----------
+    lam_init : ndarray, shape (6,)
+        Initial λ values (m).
+    lam_final : ndarray, shape (6,)
+        Final λ values (m).
+    t_start : float
+        Ramp onset time (s). Default: 0.05.
+    duration : float
+        Ramp duration (s). Default: 0.35.
+
+    Returns
+    -------
+    lam_fn : callable
+        lam_fn(t) -> ndarray of shape (6,).
+    """
+    lam_init = np.asarray(lam_init, dtype=float)
+    lam_final = np.asarray(lam_final, dtype=float)
+
+    def fn(t):
+        if t < t_start:
+            return lam_init.copy()
+        elif t < t_start + duration:
+            return lam_init + (t - t_start) / duration * (lam_final - lam_init)
+        else:
+            return lam_final.copy()
+    return fn

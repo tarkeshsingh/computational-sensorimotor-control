@@ -16,7 +16,7 @@ Quick start
 """
 
 from .arm import Arm
-from .muscle import Muscle, make_muscles, force_velocity_multiplier
+from .muscle import Muscle, make_muscles, force_velocity_multiplier, lambda_for_posture, make_ramp
 from .hill_muscle import HillMuscle, make_hill_muscles
 from .dynamics import (
     mass_matrix,
