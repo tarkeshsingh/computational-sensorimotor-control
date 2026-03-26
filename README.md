@@ -132,7 +132,7 @@ All muscle rest lengths are defined relative to Q_REF = (55°, 75°), which plac
 | 8 | Vision & Sensory Delay | Lab08_Vision.ipynb, HW08_Vision.ipynb | Keele & Posner (1968); Elliott et al. (2017) |
 | 9 | Kalman Filter / Proprioception | Lab09_KalmanFilter.ipynb, HW09_WhenDoesVisionHelp.ipynb | Wolpert et al. (1995) |
 | 10 | From Reaching to Interception | Lab10_Interception.ipynb, HW10_Bayesian_Interception.ipynb | Fooken et al. (2021) |
-| 11 | When Motor Commands Meet Muscle | Lab11_Muscle.ipynb, HW11_EPH_Muscle.ipynb | Gribble et al. (1998) + Kistemaker et al. (2006) |
+| 11 | When Motor Commands Meet Muscle | Lab11_EPH_Muscle.ipynb, HW11_EPH_Muscle.ipynb | Gribble et al. (1998) + Kistemaker et al. (2006) |
 | 12 | Optimal Feedback Control | Lab12_OFC.ipynb | Todorov & Jordan (2002) |
 | 13 | Motor Adaptation | Lab13_Adaptation.ipynb | Shadmehr & Mussa-Ivaldi (1994) |
 | 14 | Linearizing the Plant | Lab14_Linearizer.ipynb | Li & Todorov (2004) |
