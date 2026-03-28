@@ -13,7 +13,7 @@ This course builds a complete computational model of human arm reaching, one lay
 | **1. The Plant** | 1–3 | Kinematics, muscles, dynamics — build the arm from scratch |
 | **2. Controllers** | 4–7 | EPH/λ model, VITE, inverse dynamics, noise |
 | **3. Feedback** | 8–10 | Vision, proprioception, Kalman filter, interception |
-| **4. Optimal Control** | 11–15 | Muscle mechanics, OFC, adaptation, linearization, clinical |
+| **4. Optimal Control** | 11–15 | Muscle mechanics, OFC, linearization (iLQG), clinical, presentations |
 
 ### Key design principle
 
@@ -33,8 +33,15 @@ Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998)
 │   │   └── polar_kf.py     # Polar Kalman filter for target tracking (Week 10)
 │   └── tests/
 ├── lectures/               # Weekly lecture notes (.docx)
+│   └── Week12_Lecture.docx # OFC: LQR + KF = LQG, minimum intervention, sensory transition
+├── labs/                   # Jupyter lab notebooks
+│   ├── Lab12_OFC.ipynb     # Student version (12 blanks across 5 exercises)
+│   └── Lab12_OFC_Solutions.ipynb
 ├── homework/               # Assignments + student notebooks
-└── labs/                   # Jupyter lab notebooks
+│   ├── HW12_OFC.docx       # Problem description with task figure
+│   ├── HW12_OFC.ipynb      # Student version (14 blanks across 6 exercises)
+│   └── HW12_OFC_Solutions.ipynb
+└── Course_Outline_v11.docx # Updated outline
 ```
 
 ## Installing the Plant Library
@@ -73,6 +80,17 @@ The arm model follows Gribble, Ostry, Sanguineti & Laboissière (1998):
 | `simulate_lambda(lam_fn)` | Gribble muscles | Threshold control λ(t) | 4+ |
 | `simulate_hill(lam_fn)` | Hill muscles (CE+SE+PE) | R-C λ → STIM | 11 |
 | `simulate_kmhm(lam_fn, q_target)` | Hill muscles (CE+SE+PE) | R-C + CE velocity feedback | 11 |
+
+### OFC control (Week 12+)
+
+Week 12 introduces optimal feedback control on a torque-driven (linearized) arm — no muscle simulation functions needed. Students build the LQR/LQG pipeline from scratch:
+
+| Function | What it computes | Built in |
+|----------|-----------------|----------|
+| `linearize_arm(q_lin, dt)` | A (4×4), B (4×2) state-space matrices | Lab 12 |
+| `riccati_backward(A, B, Q, R, N)` | Time-varying gains L_t, cost-to-go S_t | Lab 12 |
+| `kalman_step(xh, P, u, y, A, B, H, W, V)` | KF predict-update for hand state | Lab 12 |
+| `simulate_lqg(...)` | Full closed-loop LQG with sensory noise | Lab 12 |
 
 ### Helper functions
 
@@ -116,7 +134,9 @@ All muscle rest lengths are defined relative to Q_REF = (55°, 75°), which plac
 | 9 | Kalman filter, sensor fusion | same as Week 8 |
 | 10 | Polar KF, pursuit efference copy, interception | + `PolarKF` |
 | 11 | Hill muscle comparison, perturbation analysis | + `HillMuscle`, `make_hill_muscles`, `simulate_hill`, `simulate_kmhm`, `lambda_for_posture`, `make_ramp` |
-| 12+ | OFC, adaptation, linearization, clinical | TBD |
+| 12 | LQR (Riccati backward), KF (predict-update), LQG simulation, point-vs-bar MIP | same as Week 11 |
+| 13 | iLQG iteration, augmented-state delays, JAX Jacobians | same as Week 11 |
+| 14–15 | Clinical impairment simulations, project presentations | same as Week 11 |
 
 ## Week-by-Week Materials
 
@@ -133,10 +153,10 @@ All muscle rest lengths are defined relative to Q_REF = (55°, 75°), which plac
 | 9 | Kalman Filter / Proprioception | Lab09_KalmanFilter.ipynb, HW09_WhenDoesVisionHelp.ipynb | Wolpert et al. (1995) |
 | 10 | From Reaching to Interception | Lab10_Interception.ipynb, HW10_Bayesian_Interception.ipynb | Fooken et al. (2021) |
 | 11 | When Motor Commands Meet Muscle | Lab11_EPH_Muscle.ipynb, HW11_EPH_Muscle.ipynb | Gribble et al. (1998) + Kistemaker et al. (2006) |
-| 12 | Optimal Feedback Control | Lab12_OFC.ipynb | Todorov & Jordan (2002) |
-| 13 | Motor Adaptation | Lab13_Adaptation.ipynb | Shadmehr & Mussa-Ivaldi (1994) |
-| 14 | Linearizing the Plant | Lab14_Linearizer.ipynb | Li & Todorov (2004) |
-| 15 | Clinical Motor Control | Lab15_Clinical.ipynb | Scott (2004) |
+| 12 | Optimal Feedback Control | Lab12_OFC.ipynb, HW12_OFC.ipynb | Todorov & Jordan (2002) |
+| 13 | Linearizing the Plant (iLQG) | Lab13_iLQG.ipynb | Li & Todorov (2004); Todorov (2005) |
+| 14 | Clinical Motor Control | Lab14_Clinical.ipynb | Scott (2004) |
+| 15 | Student Presentations | Project slides + code | — |
 
 ## Running Tests
 
@@ -152,6 +172,9 @@ pytest tests/ -v
 - Kistemaker, D. A., Van Soest, A. J., & Bobbert, M. F. (2006). Is equilibrium point control feasible for fast goal-directed single-joint movements? *Journal of Neurophysiology*, 95(5), 2898–2912.
 - Feldman, A. G. (1966). Functional tuning of the nervous system with control of movement or maintenance of a steady posture. *Biophysics*, 11(3), 565–578.
 - Flash, T., & Hogan, N. (1985). The coordination of arm movements: An experimentally confirmed mathematical model. *Journal of Neuroscience*, 5(7), 1688–1703.
+- Li, W., & Todorov, E. (2004). Iterative linear quadratic regulator design for nonlinear biological movement systems. *ICINCO*, 1, 222–229.
+- Scott, S. H. (2004). Optimal feedback control and the neural basis of volitional motor control. *Nature Reviews Neuroscience*, 5(7), 532–546.
+- Todorov, E. (2005). Stochastic optimal control and estimation methods adapted to the noise characteristics of the sensorimotor system. *Neural Computation*, 17(5), 1084–1108.
 - Todorov, E., & Jordan, M. I. (2002). Optimal feedback control as a theory of motor coordination. *Nature Neuroscience*, 5(11), 1226–1235.
 
 ## License
