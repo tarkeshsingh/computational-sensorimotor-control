@@ -22,33 +22,66 @@ Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998)
 ## Repository Structure
 
 ```
-├── smc/                    # Pip-installable plant library
+├── smc/                        # Pip-installable plant library (v0.2.0)
 │   ├── src/smc/
-│   │   ├── arm.py          # FK, IK, Jacobian (Week 1)
-│   │   ├── muscle.py       # Gribble muscle model + lambda_for_posture, make_ramp (Week 2, extended Week 11)
-│   │   ├── hill_muscle.py  # Hill-type muscle: CE+SE+PE, Hatze activation (Week 11)
-│   │   ├── dynamics.py     # Mass matrix, Coriolis, RK4, simulate_lambda/hill/kmhm (Week 3, extended Week 11)
-│   │   ├── plant16d.py     # 16D state-space interface for iLQG (Week 13)
-│   │   ├── params.py       # All physical parameters
-│   │   ├── sensor.py       # Foveal, peripheral, proprioceptive sensors (Week 8)
-│   │   └── polar_kf.py     # Polar Kalman filter for target tracking (Week 10)
+│   │   ├── arm.py              # FK, IK, Jacobian (Week 1)
+│   │   ├── muscle.py           # Gribble muscle model + lambda_for_posture, make_ramp (Week 2, extended Week 11)
+│   │   ├── hill_muscle.py      # Hill-type muscle: CE+SE+PE, Hatze activation (Week 11)
+│   │   ├── dynamics.py         # Mass matrix, Coriolis, RK4, simulate_lambda/hill/kmhm (Week 3, extended Week 11)
+│   │   ├── plant16d.py         # 16D state-space interface for iLQG (Week 13)
+│   │   ├── params.py           # All physical parameters
+│   │   ├── sensor.py           # Foveal, peripheral, proprioceptive sensors (Week 8)
+│   │   └── polar_kf.py         # Polar Kalman filter for target tracking (Week 10)
 │   └── tests/
-├── lectures/               # Weekly lecture notes (.docx)
-│   ├── Week12_Lecture.docx # OFC: LQR + KF = LQG, minimum intervention, sensory transition
-│   └── Week13_Lecture.docx # iLQG: re-linearization, 16D state, augmented delays
-├── labs/                   # Jupyter lab notebooks
+├── lectures/                   # Weekly lecture notes (.docx)
+│   ├── Week01_Lecture.docx     # Kinematics & workspace geometry
+│   ├── Week02_Lecture.docx     # Muscle mechanics (Gribble model)
+│   ├── Week03_Lecture.docx     # Forward dynamics & simulation
+│   ├── Week04_Lecture.docx     # EPH / λ model
+│   ├── Week05_Lecture.docx     # VITE & movement invariants
+│   ├── Week06_Lecture.docx     # Inverse dynamics
+│   ├── Week07_Lecture.docx     # Motor noise & variability
+│   ├── Week08_Lecture.docx     # Vision & sensory delay
+│   ├── Week09_Lecture.docx     # Kalman filter / proprioception
+│   ├── Week10_Lecture.docx     # From reaching to interception
+│   ├── Week11_Lecture.docx     # When motor commands meet muscle (Hill-type)
+│   ├── Week12_Lecture.docx     # OFC: LQR + KF = LQG, minimum intervention
+│   └── Week13_Lecture.docx     # iLQG: re-linearization, 16D state, augmented delays
+├── labs/                       # Jupyter lab notebooks (student + solutions)
+│   ├── Lab01_Kinematics.ipynb
+│   ├── Lab02_Muscles.ipynb
+│   ├── Lab03_Dynamics.ipynb
+│   ├── Lab04_EPH.ipynb
+│   ├── Lab05_VITE.ipynb
+│   ├── Lab06_InverseDynamics.ipynb
+│   ├── Lab07_Noise.ipynb
+│   ├── Lab08_Vision.ipynb
+│   ├── Lab09_KalmanFilter.ipynb
+│   ├── Lab10_Interception.ipynb
+│   ├── Lab11_EPH_Muscle.ipynb
 │   ├── Lab12_OFC.ipynb
 │   ├── Lab12_OFC_Solutions.ipynb
 │   ├── Lab13_iLQG.ipynb
 │   └── Lab13_iLQG_Solutions.ipynb
-├── homework/               # Assignments + student notebooks
+├── homework/                   # Assignments (.docx) + student/solutions notebooks
+│   ├── HW01_Reaching_Predictions.ipynb
+│   ├── HW02_MuscleSpeedLimit.ipynb
+│   ├── HW03_TriphasicReach.ipynb
+│   ├── HW04_EPH_Experiments.ipynb
+│   ├── HW05_Workspace_ViaPoint.ipynb
+│   ├── HW06_InverseDynamics.ipynb
+│   ├── HW07_Noise.ipynb
+│   ├── HW08_Vision.ipynb
+│   ├── HW09_WhenDoesVisionHelp.ipynb
+│   ├── HW10_Bayesian_Interception.ipynb
+│   ├── HW11_EPH_Muscle.ipynb
 │   ├── HW12_OFC.docx
 │   ├── HW12_OFC.ipynb
 │   ├── HW12_OFC_Solutions.ipynb
 │   ├── HW13_iLQG.docx
 │   ├── HW13_iLQG.ipynb
 │   └── HW13_iLQG_Solutions.ipynb
-└── Course_Outline_v12.docx # Updated outline
+└── Course_Outline_v12.docx     # Full course outline
 ```
 
 ## Installing the Plant Library
