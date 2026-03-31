@@ -13,11 +13,11 @@ This course builds a complete computational model of human arm reaching, one lay
 | **1. The Plant** | 1–3 | Kinematics, muscles, dynamics — build the arm from scratch |
 | **2. Controllers** | 4–7 | EPH/λ model, VITE, inverse dynamics, noise |
 | **3. Feedback** | 8–10 | Vision, proprioception, Kalman filter, interception |
-| **4. Optimal Control** | 11–15 | Muscle mechanics, OFC, linearization (iLQG), clinical, presentations |
+| **4. Optimal Control** | 11–15 | Muscle mechanics, OFC, iLQG, cerebellar ataxia, presentations |
 
 ### Key design principle
 
-Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998) by hand in Weeks 1–3. From Week 4 onward, they install the `smc` library and focus entirely on controllers and theory — the plant never changes, only the control signal does. In Week 11, the plant is extended with Hill-type muscles (CE + SE + PE, Hatze activation) to explore what tendon compliance costs and buys.
+Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998) by hand in Weeks 1–3. From Week 4 onward, they install the `smc` library and focus entirely on controllers and theory — the plant never changes, only the control signal does. In Week 11, the plant is extended with Hill-type muscles (CE + SE + PE, Hatze activation) to explore what tendon compliance costs and buys. In Week 13, the `plant16d` module provides a 16D state-space interface for iLQG on the Hill-type plant.
 
 ## Repository Structure
 
@@ -28,20 +28,27 @@ Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998)
 │   │   ├── muscle.py       # Gribble muscle model + lambda_for_posture, make_ramp (Week 2, extended Week 11)
 │   │   ├── hill_muscle.py  # Hill-type muscle: CE+SE+PE, Hatze activation (Week 11)
 │   │   ├── dynamics.py     # Mass matrix, Coriolis, RK4, simulate_lambda/hill/kmhm (Week 3, extended Week 11)
+│   │   ├── plant16d.py     # 16D state-space interface for iLQG (Week 13)
 │   │   ├── params.py       # All physical parameters
 │   │   ├── sensor.py       # Foveal, peripheral, proprioceptive sensors (Week 8)
 │   │   └── polar_kf.py     # Polar Kalman filter for target tracking (Week 10)
 │   └── tests/
 ├── lectures/               # Weekly lecture notes (.docx)
-│   └── Week12_Lecture.docx # OFC: LQR + KF = LQG, minimum intervention, sensory transition
+│   ├── Week12_Lecture.docx # OFC: LQR + KF = LQG, minimum intervention, sensory transition
+│   └── Week13_Lecture.docx # iLQG: re-linearization, 16D state, augmented delays
 ├── labs/                   # Jupyter lab notebooks
-│   ├── Lab12_OFC.ipynb     # Student version (12 blanks across 5 exercises)
-│   └── Lab12_OFC_Solutions.ipynb
+│   ├── Lab12_OFC.ipynb
+│   ├── Lab12_OFC_Solutions.ipynb
+│   ├── Lab13_iLQG.ipynb
+│   └── Lab13_iLQG_Solutions.ipynb
 ├── homework/               # Assignments + student notebooks
-│   ├── HW12_OFC.docx       # Problem description with task figure
-│   ├── HW12_OFC.ipynb      # Student version (14 blanks across 6 exercises)
-│   └── HW12_OFC_Solutions.ipynb
-└── Course_Outline_v11.docx # Updated outline
+│   ├── HW12_OFC.docx
+│   ├── HW12_OFC.ipynb
+│   ├── HW12_OFC_Solutions.ipynb
+│   ├── HW13_iLQG.docx
+│   ├── HW13_iLQG.ipynb
+│   └── HW13_iLQG_Solutions.ipynb
+└── Course_Outline_v12.docx # Updated outline
 ```
 
 ## Installing the Plant Library
@@ -70,6 +77,7 @@ The arm model follows Gribble, Ostry, Sanguineti & Laboissière (1998):
 - **Geometry**: 2-link planar arm (l₁ = 0.34 m, l₂ = 0.46 m)
 - **Muscles**: 6 muscles (pec, bic_l, bic_s, delt, tri_l, tri_lg) with exponential force-length, sigmoidal force-velocity, second-order calcium dynamics, and passive springs
 - **Hill-type muscles** (Week 11): Same 6 muscles with contractile element (CE), series elastic element (SE, tendon), parallel elastic element (PE), and Hatze length-dependent activation dynamics
+- **16D plant interface** (Week 13): State vector [θ₁, θ₂, θ̇₁, θ̇₂, γ₁..γ₆, l_CE₁..l_CE₆] for iLQG
 - **Dynamics**: Full nonlinear 2-DOF dynamics with mass matrix, Coriolis terms, and RK4 integration
 
 ### Control modes
@@ -80,6 +88,7 @@ The arm model follows Gribble, Ostry, Sanguineti & Laboissière (1998):
 | `simulate_lambda(lam_fn)` | Gribble muscles | Threshold control λ(t) | 4+ |
 | `simulate_hill(lam_fn)` | Hill muscles (CE+SE+PE) | R-C λ → STIM | 11 |
 | `simulate_kmhm(lam_fn, q_target)` | Hill muscles (CE+SE+PE) | R-C + CE velocity feedback | 11 |
+| `forward_rollout(x0, u_seq)` | Hill muscles (16D state) | Stimulation u(t) ∈ [0,1]⁶ | 13+ |
 
 ### OFC control (Week 12+)
 
@@ -91,6 +100,35 @@ Week 12 introduces optimal feedback control on a torque-driven (linearized) arm 
 | `riccati_backward(A, B, Q, R, N)` | Time-varying gains L_t, cost-to-go S_t | Lab 12 |
 | `kalman_step(xh, P, u, y, A, B, H, W, V)` | KF predict-update for hand state | Lab 12 |
 | `simulate_lqg(...)` | Full closed-loop LQG with sensory noise | Lab 12 |
+
+### iLQG control (Week 13)
+
+Week 13 extends OFC to the nonlinear Hill-type muscle plant using iterative LQG:
+
+| Function | What it computes | Built in |
+|----------|-----------------|----------|
+| `compute_jacobians(x_bar, u_bar)` | A_t (16×16), B_t (16×6) via central finite differences | Lab 13 |
+| `riccati_backward_ilqg(...)` | L_t, L_v, L_u gains + v_t target-miss vector | Lab 13 |
+| `forward_pass(...)` | Three-term control law with line search | Lab 13 |
+| `run_ilqg(...)` | Full iLQG loop: linearize → backward → forward → iterate | Lab 13 |
+
+### 16D plant interface (Week 13, `plant16d` module)
+
+```python
+from smc import (
+    NX, NU, MUSCLE_NAMES,           # 16, 6, ['Pec', 'Bic_l', ...]
+    DT_SIM, DT_CTRL, N_SUBSTEPS,    # 0.001, 0.005, 5
+    make_x0, make_target,            # joint angles → 16D state
+    set_muscle_state,                # sync muscle objects to state vector
+    hill_step, forward_rollout,      # forward dynamics
+)
+```
+
+The 16D state vector:
+- `x[0:2]` — joint angles θ₁, θ₂ (rad)
+- `x[2:4]` — joint velocities θ̇₁, θ̇₂ (rad/s)
+- `x[4:10]` — muscle activations γ₁..γ₆ (Hatze calcium)
+- `x[10:16]` — contractile element lengths l_CE₁..l_CE₆ (m)
 
 ### Helper functions
 
@@ -135,8 +173,9 @@ All muscle rest lengths are defined relative to Q_REF = (55°, 75°), which plac
 | 10 | Polar KF, pursuit efference copy, interception | + `PolarKF` |
 | 11 | Hill muscle comparison, perturbation analysis | + `HillMuscle`, `make_hill_muscles`, `simulate_hill`, `simulate_kmhm`, `lambda_for_posture`, `make_ramp` |
 | 12 | LQR (Riccati backward), KF (predict-update), LQG simulation, point-vs-bar MIP | same as Week 11 |
-| 13 | iLQG iteration, augmented-state delays, JAX Jacobians | same as Week 11 |
-| 14–15 | Clinical impairment simulations, project presentations | same as Week 11 |
+| 13 | iLQG iteration (Jacobians, extended Riccati, three-term forward pass), augmented-state delay matrices | + `make_x0`, `make_target`, `set_muscle_state`, `hill_step`, `forward_rollout` |
+| 14 | Cerebellar ataxia: degraded forward model, increased process noise, impaired adaptation | same as Week 13 |
+| 15 | Student project presentations | same as Week 13 |
 
 ## Week-by-Week Materials
 
@@ -154,8 +193,8 @@ All muscle rest lengths are defined relative to Q_REF = (55°, 75°), which plac
 | 10 | From Reaching to Interception | Lab10_Interception.ipynb, HW10_Bayesian_Interception.ipynb | Fooken et al. (2021) |
 | 11 | When Motor Commands Meet Muscle | Lab11_EPH_Muscle.ipynb, HW11_EPH_Muscle.ipynb | Gribble et al. (1998) + Kistemaker et al. (2006) |
 | 12 | Optimal Feedback Control | Lab12_OFC.ipynb, HW12_OFC.ipynb | Todorov & Jordan (2002) |
-| 13 | Linearizing the Plant (iLQG) | Lab13_iLQG.ipynb | Li & Todorov (2004); Todorov (2005) |
-| 14 | Clinical Motor Control | Lab14_Clinical.ipynb | Scott (2004) |
+| 13 | Linearizing the Plant (iLQG) | Lab13_iLQG.ipynb, HW13_iLQG.ipynb | Todorov (2005) |
+| 14 | Cerebellar Ataxia | Lab14_CerebellarAtaxia.ipynb | Kakei et al. (2026) |
 | 15 | Student Presentations | Project slides + code | — |
 
 ## Running Tests
@@ -169,6 +208,7 @@ pytest tests/ -v
 ## References
 
 - Gribble, P. L., Ostry, D. J., Sanguineti, V., & Laboissière, R. (1998). Are complex control signals required for human arm movement? *Journal of Neurophysiology*, 79(3), 1409–1424.
+- Kakei, S., Bostan, A. C., Ebner, T. J., Fakharian, M. A., Gomi, H., Guell, X., Hemelt, M., Hoang, H., Hull, C., Inoue, M., Ishikawa, T., Kameda, M., Kawato, M., Kitazawa, S., Manto, M., Medina, J. F., Mitoma, H., Ohmae, K., Ohmae, S., … Yamazaki, T. (2026). Consensus Paper: Models of Cerebellar Functions. *The Cerebellum*, 25(1), 15.
 - Kistemaker, D. A., Van Soest, A. J., & Bobbert, M. F. (2006). Is equilibrium point control feasible for fast goal-directed single-joint movements? *Journal of Neurophysiology*, 95(5), 2898–2912.
 - Feldman, A. G. (1966). Functional tuning of the nervous system with control of movement or maintenance of a steady posture. *Biophysics*, 11(3), 565–578.
 - Flash, T., & Hogan, N. (1985). The coordination of arm movements: An experimentally confirmed mathematical model. *Journal of Neuroscience*, 5(7), 1688–1703.
