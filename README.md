@@ -252,6 +252,7 @@ pytest tests/ -v
 - Kakei, S., Bostan, A. C., Ebner, T. J., Fakharian, M. A., Gomi, H., Guell, X., Hemelt, M., Hoang, H., Hull, C., Inoue, M., Ishikawa, T., Kameda, M., Kawato, M., Kitazawa, S., Manto, M., Medina, J. F., Mitoma, H., Ohmae, K., Ohmae, S., … Yamazaki, T. (2026). Consensus Paper: Models of Cerebellar Functions. *The Cerebellum*, 25(1), 15.
 - Kistemaker, D. A., Van Soest, A. J., & Bobbert, M. F. (2006). Is equilibrium point control feasible for fast goal-directed single-joint movements? *Journal of Neurophysiology*, 95(5), 2898–2912.
 - Feldman, A. G. (1966). Functional tuning of the nervous system with control of movement or maintenance of a steady posture. *Biophysics*, 11(3), 565–578.
+- Feldman, A. G., & Latash, M. L. (2005). Testing hypotheses and the advancement of science: recent attempts to falsify the equilibrium point hypothesis. *Experimental Brain Research*, 161(1), 91–103.
 - Flash, T., & Hogan, N. (1985). The coordination of arm movements: An experimentally confirmed mathematical model. *Journal of Neuroscience*, 5(7), 1688–1703.
 - Li, W., & Todorov, E. (2004). Iterative linear quadratic regulator design for nonlinear biological movement systems. *ICINCO*, 1, 222–229.
 - Mazzoni, P., Hristova, A., & Krakauer, J. W. (2007). Why don't we move faster? Parkinson's disease, movement vigor, and implicit motivation. *Journal of Neuroscience*, 27(27), 7105–7116.
