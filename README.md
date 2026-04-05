@@ -13,7 +13,7 @@ This course builds a complete computational model of human arm reaching, one lay
 | **1. The Plant** | 1–3 | Kinematics, muscles, dynamics — build the arm from scratch |
 | **2. Controllers** | 4–7 | EPH/λ model, VITE, inverse dynamics, noise |
 | **3. Feedback** | 8–10 | Vision, proprioception, Kalman filter, interception |
-| **4. Optimal Control** | 11–15 | Muscle mechanics, OFC, iLQG, cerebellar ataxia, presentations |
+| **4. Optimal Control** | 11–15 | Muscle mechanics, OFC, iLQG, motor learning, presentations |
 
 ### Key design principle
 
@@ -46,7 +46,8 @@ Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998)
 │   ├── Week10_Lecture.docx     # From reaching to interception
 │   ├── Week11_Lecture.docx     # When motor commands meet muscle (Hill-type)
 │   ├── Week12_Lecture.docx     # OFC: LQR + KF = LQG, minimum intervention
-│   └── Week13_Lecture.docx     # iLQG: re-linearization, 16D state, augmented delays
+│   ├── Week13_Lecture.docx     # iLQG: re-linearization, 16D state, augmented delays
+│   └── Week14_Lecture.docx     # Subcortical learning: cerebellum, basal ganglia, motor adaptation
 ├── labs/                       # Jupyter lab notebooks (student + solutions)
 │   ├── Lab01_Kinematics.ipynb
 │   ├── Lab02_Muscles.ipynb
@@ -62,7 +63,9 @@ Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998)
 │   ├── Lab12_OFC.ipynb
 │   ├── Lab12_OFC_Solutions.ipynb
 │   ├── Lab13_iLQG.ipynb
-│   └── Lab13_iLQG_Solutions.ipynb
+│   ├── Lab13_iLQG_Solutions.ipynb
+│   ├── Lab14_MotorAdaptation.ipynb
+│   └── Lab14_MotorAdaptation_Solutions.ipynb
 ├── homework/                   # Assignments (.docx) + student/solutions notebooks
 │   ├── HW01_Reaching_Predictions.ipynb
 │   ├── HW02_MuscleSpeedLimit.ipynb
@@ -80,8 +83,12 @@ Students build the biological arm model (2-link, 6 muscles, Gribble et al. 1998)
 │   ├── HW12_OFC_Solutions.ipynb
 │   ├── HW13_iLQG.docx
 │   ├── HW13_iLQG.ipynb
-│   └── HW13_iLQG_Solutions.ipynb
-└── Course_Outline_v12.docx     # Full course outline
+│   ├── HW13_iLQG.ipynb
+│   ├── HW13_iLQG_Solutions.ipynb
+│   ├── HW14_WashoutPredicts.docx
+│   ├── HW14_WashoutPredicts.ipynb
+│   └── HW14_WashoutPredicts_Solutions.ipynb
+└── Course_Outline_v14.docx     # Full course outline
 ```
 
 ## Installing the Plant Library
@@ -207,7 +214,7 @@ All muscle rest lengths are defined relative to Q_REF = (55°, 75°), which plac
 | 11 | Hill muscle comparison, perturbation analysis | + `HillMuscle`, `make_hill_muscles`, `simulate_hill`, `simulate_kmhm`, `lambda_for_posture`, `make_ramp` |
 | 12 | LQR (Riccati backward), KF (predict-update), LQG simulation, point-vs-bar MIP | same as Week 11 |
 | 13 | iLQG iteration (Jacobians, extended Riccati, three-term forward pass), augmented-state delay matrices | + `make_x0`, `make_target`, `set_muscle_state`, `hill_step`, `forward_rollout` |
-| 14 | Cerebellar ataxia: degraded forward model, increased process noise, impaired adaptation | same as Week 13 |
+| 14 | Two-stage adaptation model, reinforcement learning, cerebellar degradation, exploration-exploitation | `Arm`, `mass_matrix`, `coriolis` (force-field sim) |
 | 15 | Student project presentations | same as Week 13 |
 
 ## Week-by-Week Materials
@@ -227,7 +234,7 @@ All muscle rest lengths are defined relative to Q_REF = (55°, 75°), which plac
 | 11 | When Motor Commands Meet Muscle | Lab11_EPH_Muscle.ipynb, HW11_EPH_Muscle.ipynb | Gribble et al. (1998) + Kistemaker et al. (2006) |
 | 12 | Optimal Feedback Control | Lab12_OFC.ipynb, HW12_OFC.ipynb | Todorov & Jordan (2002) |
 | 13 | Linearizing the Plant (iLQG) | Lab13_iLQG.ipynb, HW13_iLQG.ipynb | Todorov (2005) |
-| 14 | Cerebellar Ataxia | Lab14_CerebellarAtaxia.ipynb | Kakei et al. (2026) |
+| 14 | Subcortical Learning | Lab14_MotorAdaptation.ipynb, HW14_WashoutPredicts.ipynb | Izawa & Shadmehr (2011); Rezazadeh & Berniker (2019) |
 | 15 | Student Presentations | Project slides + code | — |
 
 ## Running Tests
@@ -241,12 +248,16 @@ pytest tests/ -v
 ## References
 
 - Gribble, P. L., Ostry, D. J., Sanguineti, V., & Laboissière, R. (1998). Are complex control signals required for human arm movement? *Journal of Neurophysiology*, 79(3), 1409–1424.
+- Izawa, J., & Shadmehr, R. (2011). Learning from sensory and reward prediction errors during motor adaptation. *PLoS Computational Biology*, 7(3), e1002012.
 - Kakei, S., Bostan, A. C., Ebner, T. J., Fakharian, M. A., Gomi, H., Guell, X., Hemelt, M., Hoang, H., Hull, C., Inoue, M., Ishikawa, T., Kameda, M., Kawato, M., Kitazawa, S., Manto, M., Medina, J. F., Mitoma, H., Ohmae, K., Ohmae, S., … Yamazaki, T. (2026). Consensus Paper: Models of Cerebellar Functions. *The Cerebellum*, 25(1), 15.
 - Kistemaker, D. A., Van Soest, A. J., & Bobbert, M. F. (2006). Is equilibrium point control feasible for fast goal-directed single-joint movements? *Journal of Neurophysiology*, 95(5), 2898–2912.
 - Feldman, A. G. (1966). Functional tuning of the nervous system with control of movement or maintenance of a steady posture. *Biophysics*, 11(3), 565–578.
 - Flash, T., & Hogan, N. (1985). The coordination of arm movements: An experimentally confirmed mathematical model. *Journal of Neuroscience*, 5(7), 1688–1703.
 - Li, W., & Todorov, E. (2004). Iterative linear quadratic regulator design for nonlinear biological movement systems. *ICINCO*, 1, 222–229.
+- Mazzoni, P., Hristova, A., & Krakauer, J. W. (2007). Why don't we move faster? Parkinson's disease, movement vigor, and implicit motivation. *Journal of Neuroscience*, 27(27), 7105–7116.
+- Rezazadeh, A., & Berniker, M. (2019). Force field generalization and the internal representation of motor learning. *PLoS ONE*, 14(11), e0225002.
 - Scott, S. H. (2004). Optimal feedback control and the neural basis of volitional motor control. *Nature Reviews Neuroscience*, 5(7), 532–546.
+- Smith, M. A., Ghazizadeh, A., & Shadmehr, R. (2006). Interacting adaptive processes with different timescales underlie short-term motor learning. *PLoS Biology*, 4(6), e179.
 - Todorov, E. (2005). Stochastic optimal control and estimation methods adapted to the noise characteristics of the sensorimotor system. *Neural Computation*, 17(5), 1084–1108.
 - Todorov, E., & Jordan, M. I. (2002). Optimal feedback control as a theory of motor coordination. *Nature Neuroscience*, 5(11), 1226–1235.
 
