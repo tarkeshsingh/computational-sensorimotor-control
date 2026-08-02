@@ -147,7 +147,7 @@ class Muscle:
         mv = self.velocity(qd)
         return self.ca[0] * force_velocity_multiplier(mv) + self.k * (ml - self.rl)
 
-    def compute_force_lambda(self, lam, q, qd, dt):
+    def compute_force_lambda(self, lam, q, qd, dt, mu=None):
         """Compute muscle force using λ threshold control.
 
         This is the control mode introduced in Week 4 (EPH / λ model).
@@ -164,6 +164,10 @@ class Muscle:
             Joint angular velocities (rad/s).
         dt : float
             Integration timestep (s).
+        mu : float or None
+            Velocity sensitivity μ (s). Defaults to MU_LAMBDA = 0.06 s.
+            Pass an explicit value to study how damping depends on μ
+            (e.g. HW04 Part 2) without modifying the library.
 
         Returns
         -------
@@ -172,9 +176,11 @@ class Muscle:
         activation : float
             Threshold displacement A = [l - λ + μ·dl/dt]⁺ (m).
         """
+        if mu is None:
+            mu = MU_LAMBDA
         ml = self.length(q)
         mv = self.velocity(qd)
-        a_m = max(0.0, ml - lam + MU_LAMBDA * mv)  # meters
+        a_m = max(0.0, ml - lam + mu * mv)  # meters
         a_mm = a_m * 1000.0  # convert to mm for exponential
         mt = self.rho * (np.exp(C_EXP * a_mm) - 1)
         self.ca += dt * calcium_dynamics(self.ca, mt)
@@ -194,15 +200,27 @@ def make_muscles():
     return [Muscle(*params) for params in MUSCLE_DEFS]
 
 def lambda_for_posture(q, C=0.25):
-    """Compute λ values that hold the arm at joint angles q.
+    """Assign λ values *relative to* the muscle lengths at posture q.
 
     Each λ is set so that the threshold displacement A = l − λ equals
     C × (|r_sh| + |r_el|), producing a baseline co-contraction level C.
 
+    .. warning::
+       This does **not** hold the arm at q. λ sets a *threshold*, not a
+       target: the posture the limb actually adopts is the one where all
+       six muscle torques cancel, and that equilibrium must be solved for.
+       With the default C = 0.25 the resulting equilibrium sits about
+       2.4° from q at the shoulder, and the offset grows with C, because
+       the bi-articular muscles act on the shoulder with unequal moment
+       arms (bic_s +0.025 m, tri_lg −0.040 m).
+
+       Use :func:`lambda_for_equilibrium` when you need the arm to come to
+       rest at a specific posture.
+
     Parameters
     ----------
     q : array-like, shape (2,)
-        Target joint angles (rad).
+        Joint angles (rad) whose muscle lengths define the thresholds.
     C : float
         Co-contraction level (rad). Default: 0.25.
 
@@ -210,10 +228,84 @@ def lambda_for_posture(q, C=0.25):
     -------
     lam : ndarray, shape (6,)
         Threshold values (m) for the six muscles.
+
+    See Also
+    --------
+    lambda_for_equilibrium : Solve for λ whose equilibrium *is* q.
     """
     muscles = make_muscles()
     return np.array([m.length(q) - (abs(m.r_sh) + abs(m.r_el)) * C
                      for m in muscles])
+
+
+def equilibrium_posture(lam, guess=None, n_settle=3000, dt=1e-4):
+    """Find the posture at which the net muscle torque vanishes.
+
+    Under threshold control the resting posture is emergent: it is wherever
+    the six muscle torques happen to cancel, not the posture used to assign λ.
+
+    Parameters
+    ----------
+    lam : array-like, shape (6,)
+        Threshold values (m).
+    guess : array-like or None
+        Starting guess for the root find (rad). Defaults to Q_REF.
+    n_settle : int
+        Iterations used to let the calcium filter reach steady state.
+    dt : float
+        Timestep for that settling (s).
+
+    Returns
+    -------
+    q_eq : ndarray, shape (2,)
+        Equilibrium joint angles (rad).
+    """
+    from scipy.optimize import fsolve
+    from .dynamics import compute_torques_lambda
+
+    def _net_torque(q):
+        muscles = make_muscles()
+        for _ in range(n_settle):
+            tau, _ = compute_torques_lambda(muscles, q, np.zeros(2), lam, dt)
+        return tau
+
+    q0 = np.array(Q_REF, dtype=float) if guess is None else np.asarray(guess, float)
+    return fsolve(_net_torque, q0)
+
+
+def lambda_for_equilibrium(q_target, C=0.25):
+    """Solve for λ values whose *equilibrium* is q_target.
+
+    Inverts the emergent-equilibrium map. `lambda_for_posture(q)` assigns
+    thresholds relative to q but settles elsewhere; this routine finds the
+    "virtual" posture whose assigned thresholds settle at q_target.
+
+    Parameters
+    ----------
+    q_target : array-like, shape (2,)
+        Joint angles (rad) at which the arm should come to rest.
+    C : float
+        Co-contraction level (rad). Default: 0.25.
+
+    Returns
+    -------
+    lam : ndarray, shape (6,)
+        Threshold values (m) whose equilibrium is q_target.
+
+    Notes
+    -----
+    Self-checking: ``equilibrium_posture(lambda_for_equilibrium(q))`` should
+    return ``q`` to solver tolerance.
+    """
+    from scipy.optimize import fsolve
+    q_target = np.asarray(q_target, float)
+
+    def _residual(q_lam):
+        return equilibrium_posture(lambda_for_posture(q_lam, C),
+                                   guess=q_target) - q_target
+
+    q_lam = fsolve(_residual, q_target)
+    return lambda_for_posture(q_lam, C)
 
 
 def make_ramp(lam_init, lam_final, t_start=0.05, duration=0.35):

@@ -27,7 +27,9 @@ iLQG quick start (Week 13)
 """
 
 from .arm import Arm
-from .muscle import Muscle, make_muscles, force_velocity_multiplier, lambda_for_posture, make_ramp
+from .muscle import (Muscle, make_muscles, force_velocity_multiplier,
+                     lambda_for_posture, lambda_for_equilibrium,
+                     equilibrium_posture, make_ramp)
 from .hill_muscle import HillMuscle, make_hill_muscles
 from .dynamics import (
     mass_matrix,
@@ -52,4 +54,4 @@ from .plant16d import (
     set_muscle_state, hill_step, forward_rollout,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

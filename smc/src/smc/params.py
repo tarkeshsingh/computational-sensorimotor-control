@@ -44,11 +44,13 @@ Q2_LIMITS = (0.0, np.radians(145))   # elbow: 0°–145°
 
 # ── Muscle definitions ──
 # Each tuple: (name, rho [N], k [N/m], r_sh [m], r_el [m], rest_length [m])
+# Passive stiffness k is proportional to PCSA (k/PCSA = 17.35 N/m/cm^2),
+# matching Gribble et al. (1998) p.1411 and the Week 2 lecture (Table 2).
 MUSCLE_DEFS = [
     ("pec",    14.9, 258.5,  0.04,  0.00, 0.26),
-    ("bic_l",  11.0, 150.0,  0.00,  0.03, 0.26),
-    ("bic_s",   2.1, 100.0,  0.025, 0.03, 0.29),
+    ("bic_l",  11.0, 190.9,  0.00,  0.03, 0.26),
+    ("bic_s",   2.1, 36.5,  0.025, 0.03, 0.29),
     ("delt",   14.9, 258.5, -0.04,  0.00, 0.26),
-    ("tri_l",  12.1, 200.0,  0.00, -0.02, 0.26),
-    ("tri_lg",  6.7, 100.0, -0.04, -0.02, 0.32),
+    ("tri_l",  12.1, 209.9,  0.00, -0.02, 0.26),
+    ("tri_lg",  6.7, 116.3, -0.04, -0.02, 0.32),
 ]

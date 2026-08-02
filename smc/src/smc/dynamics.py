@@ -130,7 +130,7 @@ def compute_torques_direct(muscles, q, qd, activations, dt):
     return tau
 
 
-def compute_torques_lambda(muscles, q, qd, lambdas, dt):
+def compute_torques_lambda(muscles, q, qd, lambdas, dt, mu=None):
     """Compute joint torques from λ threshold vector.
 
     Parameters
@@ -156,7 +156,7 @@ def compute_torques_lambda(muscles, q, qd, lambdas, dt):
     tau = np.zeros(2)
     activations = np.zeros(6)
     for i, m in enumerate(muscles):
-        f, a_val = m.compute_force_lambda(lambdas[i], q, qd, dt)
+        f, a_val = m.compute_force_lambda(lambdas[i], q, qd, dt, mu)
         activations[i] = a_val
         tau[0] += m.r_sh * f
         tau[1] += m.r_el * f
@@ -217,7 +217,7 @@ def simulate_direct(act_fn, T=1.0, dt=0.0001, B=0.0, q0=None):
     return t, states, hand, acts
 
 
-def simulate_lambda(lam_fn, T=1.0, dt=0.0001, q0=None, perturb_fn=None):
+def simulate_lambda(lam_fn, T=1.0, dt=0.0001, q0=None, perturb_fn=None, mu=None):
     """Simulate arm movement with λ threshold control.
 
     Parameters
@@ -232,6 +232,9 @@ def simulate_lambda(lam_fn, T=1.0, dt=0.0001, q0=None, perturb_fn=None):
         Initial joint angles (rad). Defaults to Q_REF = (55°, 75°).
     perturb_fn : callable or None
         perturb_fn(t) → ndarray of shape (2,), external torque perturbation (N·m).
+    mu : float or None
+        Velocity sensitivity μ (s). Defaults to MU_LAMBDA = 0.06 s.
+        Pass an explicit value to sweep μ without modifying the library.
 
     Returns
     -------
@@ -260,7 +263,7 @@ def simulate_lambda(lam_fn, T=1.0, dt=0.0001, q0=None, perturb_fn=None):
         states[i] = state
         hand[i] = arm.forward_kinematics(q)
         lams = np.asarray(lam_fn(t[i]))
-        tau, a = compute_torques_lambda(muscles, q, qd, lams, dt)
+        tau, a = compute_torques_lambda(muscles, q, qd, lams, dt, mu)
         acts[i] = a
         tau_ext = perturb_fn(t[i]) if perturb_fn is not None else np.zeros(2)
         state = rk4_step(
